@@ -1,0 +1,202 @@
+1.composer create-project laravel/laravel applicant-management 
+2.cd applicant-management
+3.Open .env file in the project root and update these lines:
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=applicant_db
+DB_USERNAME=root
+DB_PASSWORD=
+ Create a MySQL database:CREATE DATABASE applicant_db;
+*Set Up Model, Migration, and Seeder
+Run:php artisan make:model Applicant -m
+Open the generated migration file in database/migrations/xxxx_xx_xx_xxxxxx_create_applicants_table.php and define the schema:
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up() {
+        Schema::create('applicants', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('phone');
+            $table->enum('status', ['Unviewed', 'Interviewed', 'Hired', 'Onboarding', 'Resigned'])->default('Unviewed');
+            $table->timestamps();
+        });
+    }
+
+    public function down() {
+        Schema::dropIfExists('applicants');
+    }
+};
+php artisan migrate
+
+Set Up Routes
+Open routes/web.php and define the routes:
+use App\Http\Controllers\ApplicantController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', [ApplicantController::class, 'index'])->name('applicants.index');
+Route::get('/applicants/create', [ApplicantController::class, 'create'])->name('applicants.create');
+Route::post('/applicants', [ApplicantController::class, 'store'])->name('applicants.store');
+Route::get('/applicants/{id}/edit', [ApplicantController::class, 'edit'])->name('applicants.edit');
+Route::put('/applicants/{id}', [ApplicantController::class, 'update'])->name('applicants.update');
+Route::delete('/applicants/{id}', [ApplicantController::class, 'destroy'])->name('applicants.destroy');
+Step 5: Create Controller
+php artisan make:controller ApplicantController
+Open app/Http/Controllers/ApplicantController.php and update it:
+namespace App\Http\Controllers;
+
+use App\Models\Applicant;
+use Illuminate\Http\Request;
+
+class ApplicantController extends Controller {
+    // List all applicants
+    public function index() {
+        $applicants = Applicant::all();
+        return view('applicants.index', compact('applicants'));
+    }
+
+    // Show create form
+    public function create() {
+        return view('applicants.create');
+    }
+
+    // Store applicant
+    public function store(Request $request) {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email|unique:applicants',
+            'phone' => 'required',
+            'status' => 'required',
+        ]);
+
+        Applicant::create($request->all());
+
+        return redirect()->route('applicants.index')->with('success', 'Applicant added successfully!');
+    }
+
+    // Show edit form
+    public function edit($id) {
+        $applicant = Applicant::findOrFail($id);
+        return view('applicants.edit', compact('applicant'));
+    }
+
+    // Update applicant
+    public function update(Request $request, $id) {
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email',
+            'phone' => 'required',
+            'status' => 'required',
+        ]);
+
+        $applicant = Applicant::findOrFail($id);
+        $applicant->update($request->all());
+
+        return redirect()->route('applicants.index')->with('success', 'Applicant updated successfully!');
+    }
+
+    // Delete applicant
+    public function destroy($id) {
+        Applicant::findOrFail($id)->delete();
+        return redirect()->route('applicants.index')->with('success', 'Applicant deleted successfully!');
+    }
+}
+Step 6: Create Views (Frontend)
+Inside resources/views/ create a folder applicants:
+
+mkdir resources/views/applicants 
+
+Create index.blade.php (List Applicants)
+Inside resources/views/applicants/index.blade.php:
+@extends('layouts.app')
+
+@section('content')
+<div class="container">
+    <h2>Applicant List</h2>
+    <a href="{{ route('applicants.create') }}" class="btn btn-primary">Add Applicant</a>
+    <table class="table table-bordered mt-3">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($applicants as $applicant)
+            <tr>
+                <td>{{ $applicant->name }}</td>
+                <td>{{ $applicant->email }}</td>
+                <td>{{ $applicant->phone }}</td>
+                <td>{{ $applicant->status }}</td>
+                <td>
+                    <a href="{{ route('applicants.edit', $applicant->id) }}" class="btn btn-warning">Edit</a>
+                    <form action="{{ route('applicants.destroy', $applicant->id) }}" method="POST" class="d-inline">
+                        @csrf @method('DELETE')
+                        <button class="btn btn-danger" onclick="return confirm('Delete this applicant?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            @endforeach
+        </tbody>
+    </table>
+</div>
+@endsection
+Create Applicant Form (create.blade.php)
+Create resources/views/applicants/create.blade.php:
+
+blade
+Copy
+Edit
+@extends('layouts.app')
+
+@section('content')
+<div class="container">
+    <h2>Add Applicant</h2>
+    <form action="{{ route('applicants.store') }}" method="POST">
+        @csrf
+        <div class="mb-3">
+            <label>Name:</label>
+            <input type="text" name="name" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label>Email:</label>
+            <input type="email" name="email" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label>Phone:</label>
+            <input type="text" name="phone" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label>Status:</label>
+            <select name="status" class="form-control">
+                <option>Unviewed</option>
+                <option>Interviewed</option>
+                <option>Hired</option>
+                <option>Onboarding</option>
+                <option>Resigned</option>
+            </select>
+        </div>
+        <button class="btn btn-success">Save</button>
+    </form>
+</div>
+@endsection
+
+Create the View File: Create a new file at resources/views/applicants/store.blade.php.
+
+@extends('layouts.app')
+
+@section('content')
+<div class="container">
+    <h2>Applicant Added Successfully!</h2>
+    <p>The applicant has been added to the system.</p>
+    <a href="{{ route('applicants.index') }}" class="btn btn-primary">Back to Applicant List</a>
+</div>
+@endsection
+
